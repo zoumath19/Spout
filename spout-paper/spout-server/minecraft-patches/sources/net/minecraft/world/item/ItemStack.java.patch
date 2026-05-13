@@ -75,3 +75,14 @@
                      // Paper start - adventure; conditionally render translatable components
                      boolean prev = net.minecraft.network.chat.ComponentSerialization.DONT_RENDER_TRANSLATABLES.get();
                      try (final io.papermc.paper.util.SafeAutoClosable ignored = io.papermc.paper.util.sanitizer.ItemObfuscationSession.withContext(c -> c.itemStack(itemStack))) { // pass the itemstack as context to the obfuscation session
+@@ -520,5 +_,10 @@
+                         if (!(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
+                             block.onPlace(level, newPos, oldBlock, true, context);
+                         }
++                        // Spout start - More data-driven - Blocks - Refresh light after captured custom block placement
++                        if (net.minecraft.world.level.lighting.LightEngine.hasDifferentLightProperties(oldBlock, block)) {
++                            level.getChunkSource().getLightEngine().checkBlock(newPos);
++                        }
++                        // Spout end - More data-driven - Blocks - Refresh light after captured custom block placement
+                         level.notifyAndUpdatePhysics(newPos, null, oldBlock, block, level.getBlockState(newPos), updateFlags, net.minecraft.world.level.block.Block.UPDATE_LIMIT); // send null chunk as chunk.k() returns false by this point
+                     }

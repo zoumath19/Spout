@@ -1,0 +1,85 @@
+--- a/net/minecraft/server/level/ThreadedLevelLightEngine.java
++++ b/net/minecraft/server/level/ThreadedLevelLightEngine.java
+@@ -36,2 +_,2 @@
+-    private void queueTaskForSection(final int chunkX, final int chunkY, final int chunkZ,
++    private ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface.ServerLightQueue.ServerChunkTasks queueTaskForSection(final int chunkX, final int chunkY, final int chunkZ,
+                                      final java.util.function.Supplier<ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface.LightQueue.ChunkTasks> supplier) {
+@@ -43,3 +_,3 @@
+             // do not accept updates in unlit chunks, unless we might be generating a chunk
+-            return;
++            return null;
+         }
+@@ -50,3 +_,3 @@
+             // not scheduled
+-            return;
++            return null;
+         }
+@@ -56,3 +_,3 @@
+             // ticket already added
+-            return;
++            return scheduledTask;
+         }
+@@ -65,4 +_,5 @@
+         scheduledTask.queueOrRunTask(() -> {
+             ((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel)world).moonrise$getChunkTaskScheduler().chunkHolderManager.removeTicketAtLevel(ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface.CHUNK_WORK_TICKET, pos, ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface.LIGHT_TICKET_LEVEL, ticketId);
+         });
++        return scheduledTask;
+     }
+@@ -187,8 +_,56 @@
+     public void checkBlock(final BlockPos pos) {
+         // Paper start - rewrite chunk system
+         final BlockPos posCopy = pos.immutable();
+-        this.queueTaskForSection(posCopy.getX() >> 4, posCopy.getY() >> 4, posCopy.getZ() >> 4, () -> {
++        final ca.spottedleaf.moonrise.patches.starlight.light.StarLightInterface.ServerLightQueue.ServerChunkTasks scheduledTask = this.queueTaskForSection(posCopy.getX() >> 4, posCopy.getY() >> 4, posCopy.getZ() >> 4, () -> {
+             return ThreadedLevelLightEngine.this.starlight$getLightEngine().blockChange(posCopy);
+         });
++        // Spout start - More data-driven - Blocks - Broadcast block light after Starlight finishes recalculating
++        if (scheduledTask != null) {
++            scheduledTask.queueOrRunTask(() -> {
++                final ServerLevel world = (ServerLevel)ThreadedLevelLightEngine.this.starlight$getLightEngine().getWorld();
++                if (world != null) {
++                    SectionPos.aroundAndAtBlockPos(posCopy, section -> world.getChunkSource().onLightUpdate(LightLayer.BLOCK, SectionPos.of(section)));
++                    ThreadedLevelLightEngine.this.spout$sendFullLightUpdatesNear(world, posCopy);
++                }
++            });
++        }
++        // Spout end - More data-driven - Blocks - Broadcast block light after Starlight finishes recalculating
+         // Paper end - rewrite chunk system
+     }
++
++    // Spout start - More data-driven - Blocks - Broadcast block light after Starlight finishes recalculating
++    private void spout$sendFullLightUpdatesNear(final ServerLevel world, final BlockPos pos) {
++        final int minChunkX = SectionPos.blockToSectionCoord(pos.getX() - net.minecraft.world.level.lighting.LightEngine.MAX_LEVEL);
++        final int maxChunkX = SectionPos.blockToSectionCoord(pos.getX() + net.minecraft.world.level.lighting.LightEngine.MAX_LEVEL);
++        final int minChunkZ = SectionPos.blockToSectionCoord(pos.getZ() - net.minecraft.world.level.lighting.LightEngine.MAX_LEVEL);
++        final int maxChunkZ = SectionPos.blockToSectionCoord(pos.getZ() + net.minecraft.world.level.lighting.LightEngine.MAX_LEVEL);
++
++        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
++            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
++                this.spout$sendFullLightUpdate(world, new ChunkPos(chunkX, chunkZ));
++            }
++        }
++    }
++
++    private void spout$sendFullLightUpdate(final ServerLevel world, final ChunkPos chunkPos) {
++        ((ca.spottedleaf.moonrise.patches.chunk_system.level.ChunkSystemServerLevel)world).moonrise$getChunkTaskScheduler().scheduleChunkTask(chunkPos.x(), chunkPos.z(), () -> {
++            final java.util.List<ServerPlayer> players = this.chunkMap.getPlayers(chunkPos, false);
++            if (players.isEmpty()) {
++                return;
++            }
++
++            final net.minecraft.network.protocol.Packet<?> lightPacket = new net.minecraft.network.protocol.game.ClientboundLightUpdatePacket(
++                chunkPos,
++                this,
++                null,
++                null
++            );
++            for (final ServerPlayer player : players) {
++                final net.minecraft.server.network.ServerGamePacketListenerImpl connection = player.connection;
++                if (connection != null) {
++                    connection.send(lightPacket);
++                }
++            }
++        });
++    }
++    // Spout end - More data-driven - Blocks - Broadcast block light after Starlight finishes recalculating
