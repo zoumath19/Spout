@@ -23,10 +23,11 @@ public final class BlockEntityAlternativeValidation {
         throw new UnsupportedOperationException();
     }
 
-    private static boolean initialized = false;
-    private static boolean skipValidation = false;
+    private static volatile boolean initialized = false;
+    private static volatile boolean skipValidation = false;
+    private static final Object INITIALIZATION_LOCK = new Object();
 
-    private static final Map<BlockEntityType<?>, Set<Block>> alternativelyValid = new HashMap<>(1);
+    private static volatile Map<BlockEntityType<?>, Set<Block>> alternativelyValid = Collections.emptyMap();
 
     public static boolean isAlternativelyValid(BlockEntityType<?> blockEntityType, BlockState state) {
         if (skipValidation) return true;
@@ -45,23 +46,34 @@ public final class BlockEntityAlternativeValidation {
     }
 
     public static void clear() {
-        alternativelyValid.clear();
-        initialized = false;
+        synchronized (INITIALIZATION_LOCK) {
+            alternativelyValid = Collections.emptyMap();
+            initialized = false;
+        }
     }
 
     public static void initialize() {
-        clear();
-        BlockRegistry.get().forEach(block -> {
-            if (block instanceof EntityBlock entityBlock) {
-                skipValidation = true;
-                BlockEntity entity = entityBlock.newBlockEntity(BlockPos.ZERO, block.defaultBlockState());
-                skipValidation = false;
-                if (entity != null) {
-                    alternativelyValid.computeIfAbsent(entity.getType(), $ -> new HashSet<>(1)).add(block);
+        if (initialized) return;
+        synchronized (INITIALIZATION_LOCK) {
+            if (initialized) return;
+
+            Map<BlockEntityType<?>, Set<Block>> collected = new HashMap<>(1);
+            BlockRegistry.get().forEach(block -> {
+                if (block instanceof EntityBlock entityBlock) {
+                    skipValidation = true;
+                    try {
+                        BlockEntity entity = entityBlock.newBlockEntity(BlockPos.ZERO, block.defaultBlockState());
+                        if (entity != null) {
+                            collected.computeIfAbsent(entity.getType(), $ -> new HashSet<>(1)).add(block);
+                        }
+                    } finally {
+                        skipValidation = false;
+                    }
                 }
-            }
-        });
-        initialized = true;
+            });
+            alternativelyValid = collected;
+            initialized = true;
+        }
     }
 
 }
