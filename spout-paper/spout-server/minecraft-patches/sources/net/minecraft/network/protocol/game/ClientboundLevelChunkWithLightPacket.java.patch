@@ -26,7 +26,11 @@
 +
 +    private void startMappingBlocksIfNecessary() {
 +        if (!this.startedMappingBlocks.compareAndExchange(false, true)) {
-+            this.spoutChunkPacketBlockMapper.applyMappings();
++            if (this.spoutChunkPacketBlockMapper != null) {
++                this.spoutChunkPacketBlockMapper.applyMappings();
++            } else {
++                this.readyMappingBlocks = true;
++            }
 +        }
      }
  
@@ -64,8 +68,8 @@
          ChunkPos chunkPos = levelChunk.getPos();
          this.x = chunkPos.x();
          this.z = chunkPos.z();
--        io.papermc.paper.antixray.ChunkPacketInfo<net.minecraft.world.level.block.state.BlockState> chunkPacketInfo = modifyBlocks ? levelChunk.getLevel().chunkPacketBlockController.getChunkPacketInfo(this, levelChunk) : null; // Paper - Anti-Xray
-+        io.papermc.paper.antixray.ChunkPacketInfo<net.minecraft.world.level.block.state.BlockState> chunkPacketInfo = modifyBlocks ? levelChunk.getLevel().chunkPacketBlockController.getChunkPacketInfo(this, levelChunk) : new io.papermc.paper.antixray.ChunkPacketInfo<>(this, levelChunk); // Paper - Ant-Xray // Spout - Block mapping - Chunk packets - Always create ChunkPacketInfo
+         io.papermc.paper.antixray.ChunkPacketInfo<net.minecraft.world.level.block.state.BlockState> chunkPacketInfo = modifyBlocks ? levelChunk.getLevel().chunkPacketBlockController.getChunkPacketInfo(this, levelChunk) : null; // Paper - Anti-Xray
++        if (chunkPacketInfo == null) chunkPacketInfo = new io.papermc.paper.antixray.ChunkPacketInfo<>(this, levelChunk); // Spout - Block mapping - Chunk packets - Empty chunks still need section indexes
          this.chunkData = new ClientboundLevelChunkPacketData(levelChunk, chunkPacketInfo); // Paper - Anti-Xray
          this.lightData = new ClientboundLightUpdatePacketData(chunkPos, lightEngine, skyChangedLightSectionFilter, blockChangedLightSectionFilter);
          levelChunk.getLevel().chunkPacketBlockController.modifyBlocks(this, chunkPacketInfo); // Paper - Anti-Xray - Modify blocks
