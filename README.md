@@ -159,5 +159,8 @@ Additionally, this project builds on top of the work of the contributors to
 [Paper](https://github.com/PaperMC/Paper) and [Spigot](https://www.spigotmc.org/), and
 [Fabric](https://fabricmc.net/) and [Sponge](https://spongepowered.org/).
 
-Also, thanks go out to [Alvinn8](https://github.com/Alvinn8/) and [SoSeDiK](https://github.com/SoSeDiK)
+Also, thanks go out to
+[Alvinn8](https://github.com/Alvinn8/),
+[SoSeDiK](https://github.com/SoSeDiK) and
+[zoumath19](https://github.com/zoumath19)
 for their contributions to this project.
